@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html style="height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<title>Ranch Interactive Web Map</title>
+	<link rel="icon" type="image/x-icon" href="icons/ranchlogo.png">
+
+	<link rel="stylesheet" href="scripts/leaflet.css" />
+	<script src="scripts/leaflet.js"></script>
+</head>
+
+<body style="height: 100%; margin: 0;">
+
+	<div id="map" style="width: 100%; height: 100%;"></div><!--background: #CFB88F;--><script type="text/javascript">
+	
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	function getCookie(name) {
+		const cookies = document.cookie.split("; ").reduce((acc, cookie) => {
+			const [key, value] = cookie.split("=");
+			acc[key] = value;
+			return acc;
+		}, {});
+
+		return cookies[name] ? decodeURIComponent(cookies[name]) : null;
+	}
+
+	function setCookie(key,value){
+		if (key==null) {return;}
+
+		const now = new Date();
+		const d = new Date();
+		d.setTime(d.getTime() + (45 * 24 * 60 * 60 * 1000));
+		let expiry = "expires=" + d.toUTCString();
+
+		document.cookie = key+"="+value+";"+expiry+";path=/";
+	}
+
+	if (getCookie("api_key") == null) {
+		setCookie("api_key","https://google.com")
+	} else if (getCookie("api_key") == null) {
+		let value = getCookie("api_key")
+		setCookie("api_key",value)
+	}
+
+	if (getCookie("last_layer") == null) {
+		setCookie("last_layer","tan")
+	} else if (getCookie("last_layer") != null) {
+		let value = getCookie("last_layer")
+		setCookie("last_layer",value)
+	}
+	
+	var map = L.map('map'/*, {editable: true}*/).setView([55.5, -50], 0);
+
+	L.tileLayer('map/tan/{z}/{x}_{y}.webp', {
+		continuousWorld: false,
+		noWrap: true,
+		minZoom: 3,
+		maxZoom: 7,
+	}).addTo(map);
+
+</script>
+</body>
+</html>
