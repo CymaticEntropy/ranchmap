@@ -8,6 +8,19 @@
 	<title>Ranch Web Map</title>
 	<link rel="icon" type="image/x-icon" href="assets/ranchlogo.png">
 
+	<script>(function () {
+		const file = location.pathname.split('/').pop().toLowerCase();
+
+		if (file === 'boilerplate.html') {
+			document.title = 'Development Boilerplate';
+
+			const icon = document.querySelector("link[rel~='icon']");
+			if (icon) {
+				icon.href = 'assets/icons/warning.png';
+			}
+		}
+	})();</script>
+
 	<link rel="stylesheet" href="scripts/leaflet.css" />
 	<script src="scripts/leaflet.js"></script>
 
