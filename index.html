@@ -17,7 +17,7 @@
 </head>
 
 <body style="height: 100%; margin: 0;">
-	<div id="map" style="width:100%; height:100%;background-image:url('map/tan/empty.webp');"></div><script type="text/javascript">
+	<div id="map" style="width:100%; height:100%;"></div><script type="text/javascript">
 
 	function getCookie(name) {
 		const cookies = document.cookie.split("; ").reduce((acc, cookie) => {
@@ -42,7 +42,7 @@
 
 	if (getCookie("api_key") == null) {
 		setCookie("api_key","https://google.com")
-	} else if (getCookie("api_key") == null) {
+	} else if (getCookie("api_key") != null) {
 		let value = getCookie("api_key")
 		setCookie("api_key",value)
 	}
@@ -53,54 +53,66 @@
 		let value = getCookie("last_layer")
 		setCookie("last_layer",value)
 	}
-	
-	var map = L.map('map'/*, {editable: true}*/).setView([55.5, -50], 0);
 
-	new L.basemapsSwitcher([
-	{
-		layer: L.tileLayer('map/tan/{z}/{x}_{y}.webp', {
-			continuousWorld: false,
-			noWrap: true,
-			minZoom: 3,
-			maxZoom: 7,
+	var map = L.map('map').setView([55.5, -50], 0);
 
-			// plugin configs
-			edgeBufferTiles: 3
-			}).addTo(map),
-		icon: 'map/tan.png',
-		name: 'Tan Map'
-	},
-	{
-		layer: L.tileLayer('map/gray/{z}/{x}_{y}.webp', {
-			continuousWorld: false,
-			noWrap: true,
-			minZoom: 3,
-			maxZoom: 7,
-
-			// plugin configs
-			edgeBufferTiles: 3
+	const basemaps = [
+		{
+			id: 'tan',
+			layer: L.tileLayer('map/tan/{z}/{x}_{y}.webp', {
+				continuousWorld: false,
+				noWrap: true,
+				minZoom: 3,
+				maxZoom: 7,
+				edgeBufferTiles: 3
 			}),
-		icon: 'map/gray.png',
-		name: 'Gray Map'
-	},
-	{
-		layer: L.tileLayer('map/black/{z}/{x}_{y}.webp', {
-			continuousWorld: false,
-			noWrap: true,
-			minZoom: 3,
-			maxZoom: 7,
-
-			// plugin configs
-			edgeBufferTiles: 3
+			icon: 'map/tan.png',
+			name: 'Tan Map'
+		},
+		{
+			id: 'gray',
+			layer: L.tileLayer('map/gray/{z}/{x}_{y}.webp', {
+				continuousWorld: false,
+				noWrap: true,
+				minZoom: 3,
+				maxZoom: 7,
+				edgeBufferTiles: 3
 			}),
-		icon: 'map/black.png',
-		name: 'Black Map'
-	},
-	], { position: 'topright' }).addTo(map);
+			icon: 'map/gray.png',
+			name: 'Gray Map'
+		},
+		{
+			id: 'black',
+			layer: L.tileLayer('map/black/{z}/{x}_{y}.webp', {
+				continuousWorld: false,
+				noWrap: true,
+				minZoom: 3,
+				maxZoom: 7,
+				edgeBufferTiles: 3
+			}),
+			icon: 'map/black.png',
+			name: 'Black Map'
+		}
+	];
+
+	const initial = basemaps.find(b => b.id === getCookie('last_layer')) || basemaps[0];
+
+	initial.layer.addTo(map).bringToBack();
+	L.basemapsSwitcher(basemaps, { position: 'topright' }).addTo(map);
+
+	document.getElementById('map').style.backgroundImage = "url('map/"+getCookie('last_layer')+"/empty.webp')";
 
 	map.on('basemapChange', function(e) {
 		let layer = e.layer._url.split('map/')[1]?.split('/')[0];
 		document.getElementById('map').style.backgroundImage = "url('map/"+layer+"/empty.webp')";
+
+		if (e.layer._url.includes('/tan/')) {
+			setCookie('last_layer', 'tan');
+		} else if (e.layer._url.includes('/gray/')) {
+			setCookie('last_layer', 'gray');
+		} else if (e.layer._url.includes('/black/')) {
+			setCookie('last_layer', 'black');
+		}
 	});
 
 </script><style>
