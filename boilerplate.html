@@ -27,6 +27,9 @@
 	<script src="scripts/plugins/leaflet.edgebuffer.js"></script>
 	<link rel="stylesheet" href="scripts/plugins/L.switchBasemap.css" />
 	<script src="scripts/plugins/L.switchBasemap.js"></script>
+
+	<link rel="stylesheet" href="scripts/plugins/Leaflet.PinSearch.css" />
+	<script src="scripts/plugins/Leaflet.PinSearch.js"></script>
 </head>
 
 <body style="height: 100%; margin: 0;">
@@ -59,6 +62,8 @@
 		let value = getCookie("api_key")
 		setCookie("api_key",value)
 	}
+
+	const api_key = getCookie("api_key")
 
 	if (getCookie("last_layer") == null) {
 		setCookie("last_layer","tan")
@@ -111,7 +116,7 @@
 	const initial = basemaps.find(b => b.id === getCookie('last_layer')) || basemaps[0];
 
 	initial.layer.addTo(map).bringToBack();
-	L.basemapsSwitcher(basemaps, { position: 'topright' }).addTo(map);
+	L.basemapsSwitcher(basemaps, { position: 'bottomleft' }).addTo(map);
 
 	document.getElementById('map').style.backgroundImage = "url('map/"+getCookie('last_layer')+"/empty.webp')";
 
@@ -128,8 +133,23 @@
 		}
 	});
 
+		// PinSearch component
+		var searchBar = L.control.pinSearch({
+			position: 'topright',
+			placeholder: 'Search...',
+			buttonText: 'Search',
+			onSearch: function(query) {
+				console.log('Search query:', query);
+				// Handle the search query here
+			},
+			searchBarWidth: '200px',
+			searchBarHeight: '30px',
+			maxSearchResults: 5
+		}).addTo(map);
+
 </script><style>
-	.leaflet-control-zoom {opacity: 0;} /* disable me to re-enable zoom buttons */
+	.leaflet-control-attribution {display: none;}
+	.leaflet-control-zoom {display: none;} /* disable me to re-enable zoom buttons */
 	.leaflet-bar a {border-bottom: 0;}
 	.leaflet-control-zoom-in {background-image: url('assets/icons/plus-circle.svg');}
 	.leaflet-control-zoom-in span, .leaflet-control-zoom-out span {opacity: 0;}
