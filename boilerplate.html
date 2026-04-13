@@ -16,7 +16,7 @@
 
 			const icon = document.querySelector("link[rel~='icon']");
 			if (icon) {
-				icon.href = 'assets/icons/warning.png';
+				icon.href = 'assets/warning.png';
 			}
 		}
 	})();</script>
@@ -35,7 +35,14 @@
 </head>
 
 <body style="height: 100%; margin: 0;">
-	<div id="map" style="width:100%; height:100%;"></div><script type="text/javascript">
+	<div id="app">
+		<div id="map" style="width:100%; height:100%;"></div>
+		<div id="side-panel">
+			<!-- injected content -->
+		</div>
+	</div>
+
+	<script type="text/javascript">
 
 	function getCookie(name) {
 		const cookies = document.cookie.split("; ").reduce((acc, cookie) => {
@@ -58,14 +65,204 @@
 		document.cookie = key+"="+value+";"+expiry+";path=/";
 	}
 
-	if (getCookie("api_key") == null) {
-		setCookie("api_key","https://google.com")
+	function extractCoordinates(input) {
+		const regex = /LatLng\((-?\d+\.\d+), (-?\d+\.\d+)\)/g;
+		let coordinates = [];
+		let match;
+		
+		while ((match = regex.exec(input)) !== null) {
+			coordinates.push([parseFloat(match[1]), parseFloat(match[2])]);
+		}
+		
+		return coordinates.map(coord => `[${coord.join(",")}]`).join(",");
+	}
+
+	function parseCoordinatesString(coordinatesString) {
+		// Removing leading and trailing brackets, if any
+		coordinatesString = coordinatesString.replace(/^\[|\]$/g, '');
+
+		// Splitting the string into pairs of coordinates
+		const pairs = coordinatesString.split('],[');
+
+		// Initialize an array to hold the coordinates
+		const coordinates = [];
+
+		// Extracting coordinates from pairs and pushing them to the coordinates array
+		pairs.forEach(pair => {
+			const [lat, lng] = pair.split(',').map(Number);
+			coordinates.push([lat, lng]);
+		});
+
+		return coordinates;
+	}
+
+	function isValidHexColor(color) {
+		// Regular expression to match a valid hex color code
+		const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+		return hexRegex.test(color);
+	}
+
+	function debounce(func, delay) {
+		let timer;
+		return function(...args) {
+			clearTimeout(timer);
+			timer = setTimeout(() => func.apply(this, args), delay);
+		};
+	}
+
+	function disableDrawControls() {
+		Object.values(drawControls).forEach(control => {
+			map.removeControl(control);
+		});
+	}
+
+	function enableDrawControls() {
+		Object.values(drawControls).forEach(control => {
+			map.addControl(control);
+		});
+	}
+
+	function togglePanel(show) {
+		const app = document.getElementById('app');
+  		app.classList.toggle('panel-open', show);
+
+		if (show) {disableDrawControls();} else 
+		if (!show) {enableDrawControls();}
+
+		setTimeout(() => {
+			map.invalidateSize();
+		}, 310);
+	}
+
+	function clearErrors(form) {
+		form.querySelectorAll('.field-error').forEach(el => {
+			el.classList.remove('field-error');
+		});
+		form.querySelectorAll('.error-stamp').forEach(el => el.remove());
+	}
+
+	function stampError(input, message) {
+		input.classList.add('field-error');
+
+		// Avoid duplicate stamps
+		if (input.nextElementSibling?.classList.contains('error-stamp')) return;
+
+		const stamp = document.createElement('div');
+		stamp.className = 'error-stamp' + (Math.random() > 0.5 ? ' alt' : '');
+		stamp.textContent = message;
+
+		input.after(stamp);
+	}
+
+	function updateImagePreview(input, wrapper) {
+		const preview = wrapper.querySelector('#imagePreview');
+		const inner = preview.querySelector('.image-preview-inner');
+
+		// Clear everything at the start (no preserved stamps)
+		inner.innerHTML = '';
+		preview.classList.remove('visible', 'failed');
+
+		// Reset status
+		imageStatus = 'idle';
+
+		// Empty input → handled outside with 'Required'
+		if (!input.value.trim()) return;
+
+		const startTime = Date.now();
+		const MIN_DURATION = 2800 + Math.random() * 600;
+
+		// Loader phrases
+		const phrases = [
+			'Verifying Image',
+			'Inspecting Photograph',
+			'Checking Records',
+			'Reviewing Evidence',
+			'Confirming Attachment',
+			'Bogos Binted?'
+		];
+
+		const loader = document.createElement('div');
+		loader.className = 'image-loader redemption';
+		loader.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+		inner.appendChild(loader);
+		preview.classList.add('visible');
+
+		const img = new Image();
+		img.src = input.value;
+
+		const finish = (callback) => {
+			const elapsed = Date.now() - startTime;
+			const remaining = Math.max(0, MIN_DURATION - elapsed);
+			setTimeout(callback, remaining);
+		};
+
+		img.onload = () => {
+			finish(() => {
+				inner.innerHTML = '';
+				imageStatus = 'approved';
+
+				const stamp = document.createElement('div');
+				stamp.className = 'approved-stamp redemption';
+				stamp.textContent = 'Approved';
+				inner.appendChild(stamp);
+
+				setTimeout(() => {
+					stamp.classList.add('fade-out');
+					setTimeout(() => {
+						inner.removeChild(stamp);
+						inner.appendChild(img);
+						requestAnimationFrame(() => img.classList.add('visible'));
+					}, 500);
+				}, 900);
+			});
+		};
+
+		img.onerror = () => {
+			finish(() => {
+				inner.innerHTML = '';
+				imageStatus = 'rejected';
+				preview.classList.add('failed');
+
+				const stamp = document.createElement('div');
+				stamp.className = 'error-stamp redemption';
+				stamp.textContent = 'Image Not Found';
+				inner.appendChild(stamp);
+			});
+		};
+	}
+
+	function createCustomMarker(latlng, options) {
+		const { title = 'undeclared', color = '#454545', icon = 'temp' } = options;
+		const baseRotation = -45;
+		const randomOffset = (Math.random() * 6) - 3; // -3° to +3°
+		const finalRotation = -45//baseRotation + randomOffset;
+
+		const html = `
+			<div class="marker-pin" style="background-color: ${color}; transform: rotate(${finalRotation}deg);">
+				<div class="marker-icon-wrapper">
+					<img class="marker-icon" src="assets/icons/${icon}.png" />
+				</div>
+			</div>
+		`;
+
+		const markerIcon = L.divIcon({
+			className: 'custom-marker-wrapper',
+			html: html,
+			iconSize: [30, 30],
+			iconAnchor: [15, 30], // bottom center
+			popupAnchor: [0, -30]
+		});
+
+		return L.marker(latlng, { icon: markerIcon, title: title });
+	}
+
+	if (getCookie("api_key") == null || getCookie("api_key") == "null" || getCookie("api_key") == "") {
+		let value = window.prompt("Enter your API Key Here")
+		setCookie("api_key",value)
 	} else if (getCookie("api_key") != null) {
 		let value = getCookie("api_key")
 		setCookie("api_key",value)
 	}
-
-	const api_key = getCookie("api_key")
 
 	if (getCookie("last_layer") == null) {
 		setCookie("last_layer","tan")
@@ -74,7 +271,92 @@
 		setCookie("last_layer",value)
 	}
 
-	var map = L.map('map').setView([55.5, -50], 0);
+	const endpoint = atob("aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy8=") + getCookie("api_key") + "/exec";
+	let mapCategories = [];
+	const availableIcons = [
+		"anchor",
+		"bandit",
+		"beartrap",
+		"beggar",
+		"boat",
+		"bone",
+		"bottle",
+		"bounty",
+		"bull",
+		"camp",
+		"campfire",
+		"canteen",
+		"carving",
+		"castle",
+		"chair",
+		"chest",
+		"chevron",
+		"cleaver",
+		"coat",
+		"coathanger",
+		"coin",
+		"cowboy",
+		"crosshair",
+		"crossroads",
+		"doctor",
+		"dog",
+		"easel",
+		"egg",
+		"envelope",
+		"feather",
+		"fish",
+		"fishinghook",
+		"flower",
+		"graves",
+		"hand",
+		"heirlooms",
+		"hideout",
+		"honor",
+		"horseshoe",
+		"kidnapped",
+		"lasso",
+		"law",
+		"magnifyingglass",
+		"map",
+		"marks",
+		"metaldetector",
+		"moneybags",
+		"moonshine",
+		"music",
+		"necklace",
+		"nedkelly",
+		"nest",
+		"padlock",
+		"paper",
+		"paw",
+		"pelt",
+		"person",
+		"plant",
+		"pricetag",
+		"questionmark",
+		"revolver",
+		"revolvers",
+		"ring",
+		"saloon",
+		"scissors",
+		"shipwreck",
+		"shovel",
+		"sillouhette",
+		"skullpile",
+		"star",
+		"store",
+		"target_board",
+		"teepee",
+		"torch",
+		"train",
+		"trophy",
+		"wagon"
+	];
+	let mapPinsData;
+	let mapPolyData;
+	let imageStatus = 'idle';
+
+	var map = L.map('map', {editable: true, zoomControl: false, doubleClickZoom: false}).setView([55.5, -50], 0);
 
 	const basemaps = [
 		{
@@ -116,11 +398,95 @@
 	];
 
 	const initial = basemaps.find(b => b.id === getCookie('last_layer')) || basemaps[0];
-
 	initial.layer.addTo(map).bringToBack();
 	L.basemapsSwitcher(basemaps, { position: 'bottomleft' }).addTo(map);
-
 	document.getElementById('map').style.backgroundImage = "url('map/"+getCookie('last_layer')+"/empty.webp')";
+
+	L.EditControl = L.Control.extend({
+		options: {
+			position: 'topleft',
+			callback: null,
+			kind: '',
+			html: ''
+		},
+
+		onAdd: function (map) {
+			var container = L.DomUtil.create('div', 'leaflet-control leaflet-bar'),
+			link = L.DomUtil.create('a', '', container);
+
+			link.href = '#';
+			link.title = 'Create new ' + this.options.kind;
+			link.innerHTML = this.options.html;
+			L.DomEvent.on(link, 'click', L.DomEvent.stop)
+				.on(link, 'click', function () {
+					window.LAYER = this.options.callback.call(map.editTools);
+				}, this);
+			return container;
+		}
+	});
+
+	L.NewLineControl = L.EditControl.extend({
+		options: {
+			position: 'topleft',
+			callback: map.editTools.startPolyline,
+			kind: 'Polyline',
+			html: '📐'
+		}
+	});
+
+	L.NewPolygonControl = L.EditControl.extend({
+		options: {
+			position: 'topleft',
+			callback: map.editTools.startPolygon,
+			kind: 'Polygon',
+			html: '🔰'
+		}
+	});
+
+	L.NewMarkerControl = L.EditControl.extend({
+		options: {
+			position: 'topleft',
+			callback: map.editTools.startMarker,
+			kind: 'Marker',
+			html: '📌'
+		}
+	});
+
+	L.NewRectangleControl = L.EditControl.extend({
+		options: {
+			position: 'topleft',
+			callback: map.editTools.startRectangle,
+			kind: 'Rectangle',
+			html: '🟦'
+		}
+	});
+
+	L.NewCircleControl = L.EditControl.extend({
+		options: {
+			position: 'topleft',
+			callback: map.editTools.startCircle,
+			kind: 'Circle',
+			html: '🟣'
+		}
+	});
+
+	window.addEventListener('load', () => {
+		setTimeout(() => {
+			map.invalidateSize();
+		}, 50);
+	});
+
+	const drawControls = {
+		marker: new L.NewMarkerControl(),
+		polyline: new L.NewLineControl(),
+		polygon: new L.NewPolygonControl(),
+		//rectangle: new L.NewRectangleControl(),
+		//circle: new L.NewCircleControl()
+	};
+
+	Object.values(drawControls).forEach(control => {
+		map.addControl(control);
+	});
 
 	map.on('basemapChange', function(e) {
 		let layer = e.layer._url.split('map/')[1]?.split('/')[0];
@@ -135,7 +501,101 @@
 		}
 	});
 
-		// PinSearch component
+	// READ to the Map
+	fetch(endpoint, {
+        headers: {
+          'Accept': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+		let unsanitisedCategories = [];
+		let categoryLayers = {};
+        mapPinsData = data.pinsdata;
+        mapPolyData = data.polydata;
+
+        let i = mapPinsData.length;
+
+        for (let v = 0; v < i; v++) {
+            let val = mapPinsData[v];
+
+			let id = val.id;
+
+			if (id != 'devErrFix') {
+				let category = val.category;
+				unsanitisedCategories.push(category)
+
+				let xCoordinate = val.xCoordinate;
+				let yCoordinate = val.yCoordinate;
+				
+				let name = val.name;
+				let color = val.color;
+				let icon = val.icon;
+				let image = val.image;
+
+				if (!categoryLayers[category]) {
+					categoryLayers[category] = L.layerGroup().addTo(map);
+				}
+
+				createCustomMarker([xCoordinate, yCoordinate], {
+					title: name,
+					color: color,
+					icon: icon
+				})
+				.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
+				.addTo(categoryLayers[category]);
+			}
+        };
+
+        let j = mapPolyData.length
+
+        for (let v = 0; v < j; v++) {
+        	let val = mapPolyData[v];
+
+			let id = val.id;
+
+			if (id != 'devErrFix') {
+				let polytype = val.polytype;
+				let category = val.category;
+				unsanitisedCategories.push(category)
+
+				let coordinates = parseCoordinatesString(val.coordinates);
+				let name = val.name;
+				let image = val.image;
+				let color = val.color;
+
+				if (!categoryLayers[category]) {
+					categoryLayers[category] = L.layerGroup().addTo(map);
+				} 
+
+				switch (polytype) {
+					case "polyline":
+						L.polyline(coordinates, { color: color })
+						.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
+						.addTo(categoryLayers[category]);
+						break;
+					case "polygon":
+						L.polygon(coordinates, { color: color })
+						.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
+						.addTo(categoryLayers[category]);
+						break;
+				}
+			}
+        }
+
+		const overlayMaps = {};
+
+		for (const category in categoryLayers) {
+			overlayMaps[category] = categoryLayers[category];
+		}
+
+		L.control.layers(null, overlayMaps, {
+			collapsed: false,
+			position: 'bottomright'
+		}).addTo(map);
+
+		mapCategories = [...new Set(unsanitisedCategories)];
+
 		var searchBar = L.control.pinSearch({
 			position: 'topright',
 			placeholder: 'Search...',
@@ -148,17 +608,955 @@
 			searchBarHeight: '30px',
 			maxSearchResults: 5
 		}).addTo(map);
+	});
+
+	// WRITE to the Map
+	map.on('editable:drawing:commit', ({ layer }) => { // for all default drawing commits
+
+		setTimeout(function(){
+			if (layer instanceof L.Marker) {
+
+				let coords = layer.getLatLng();
+				let xsplit;
+				let ysplit;
+
+				const regex = /LatLng\((-?\d+\.\d+), (-?\d+\.\d+)\)/g;
+				let match;
+
+				while ((match = regex.exec(coords)) !== null) {
+					xsplit = parseFloat(match[1]);
+					ysplit = parseFloat(match[2]);
+				}
+
+				togglePanel(true);
+
+				const panel = document.getElementById('side-panel');
+				const wrapper = document.createElement("div");
+				wrapper.classList.add("redemption","form-container");
+
+				wrapper.innerHTML = `
+				<h1>Ranch Map Pin Creator</h1>
+				<p>Now that you have placed the Pin, submit the details to this form.</p>
+
+				<form id="pinForm" novalidate>
+				<input type="hidden" id="xcoord" name="xcoord">
+				<input type="hidden" id="ycoord" name="ycoord">
+
+				<label for="categorySelect">Category</label>
+				<select id="categorySelect" name="categorySelect">
+					<option value="">-- Select Category --</option>
+					${[...mapCategories].sort((a, b) => a.localeCompare(b))
+					.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+					<option value="__new__">+ New Category</option>
+				</select>
+				<input type="text" id="newCategory" name="newCategory" placeholder="New category..." style="display:none;">
+
+				<label for="title">Label of Pin</label>
+				<input type="text" id="title" name="title" required>
+				
+				<label for="image" id="imagelabel">Descriptor Image</label>
+				<input type="url" id="image" name="image" required>
+				<div class="image-preview" id="imagePreview">
+					<div class="image-preview-inner"></div>
+				</div>
+				
+				<label for="color">Select Color</label>
+				<input type="color" id="color" name="color" value="#454545">
+
+				<label>Choose Icon</label>
+				<div class="icon-picker" id="iconPicker"></div>
+				<input type="hidden" id="icon" name="icon">
+
+				<input class="form-button redemption" type="reset" value="Cancel">
+				<input class="form-button redemption" type="submit" value="Submit">
+			</form>`;
+			panel.appendChild(wrapper);
+
+			const form = wrapper.querySelector('#pinForm');
+			const iconPicker = form.querySelector('#iconPicker');
+			const iconInput = form.querySelector('#icon');
+
+			availableIcons.forEach(iconName => {
+				const item = document.createElement('div');
+				item.className = 'icon-option';
+				item.dataset.icon = iconName;
+
+				item.innerHTML = `
+					<img src="assets/icons/${iconName}.png" alt="${iconName}">
+				`;
+
+				item.addEventListener('click', () => {
+					// Remove previous selection
+					iconPicker.querySelectorAll('.icon-option').forEach(el => {
+						el.classList.remove('selected');
+					});
+
+					// Select this one
+					item.classList.add('selected');
+					iconInput.value = iconName;
+				});
+
+				iconPicker.appendChild(item);
+			});
+			const categorySelect = form.querySelector('#categorySelect');
+			const newCategoryInput = form.querySelector('#newCategory');
+
+			categorySelect.addEventListener('change', () => {
+				if (categorySelect.value === '__new__') {
+					newCategoryInput.style.display = 'block';
+				} else {
+					newCategoryInput.style.display = 'none';
+					newCategoryInput.value = '';
+				}
+			});
+
+			// Set hidden fields
+			form.xcoord.value = xsplit;
+			form.ycoord.value = ysplit;
+
+			// Debounced image validation (wait 500ms after typing stops)
+			const debouncedUpdateImage = debounce(() => {
+				updateImagePreview(form.image, wrapper);
+			}, 500);
+
+			form.addEventListener('input', (e) => {
+				const target = e.target;
+
+				// Remove previous field-error if typing
+				if (target.classList.contains('field-error')) {
+					target.classList.remove('field-error');
+					if (target.nextElementSibling?.classList.contains('error-stamp')) {
+						target.nextElementSibling.remove();
+					}
+				}
+
+				// Only run image validation if the input changed
+				if (target === form.image) {
+					debouncedUpdateImage();
+				}
+			});
+
+			function sanitiseCategory(str) {
+				return str
+					.trim()
+					.toLowerCase()
+					.replace(/\s+/g, ' ')
+					.replace(/^./, c => c.toUpperCase());
+				}
+
+				// Handle form submission
+				form.addEventListener('submit', (e) => {
+					e.preventDefault();
+					clearErrors(form);
+
+					let valid = true;
+
+					// Title validation
+					if (!form.title.value.trim()) {
+						stampError(form.title, 'Required');
+						valid = false;
+					}
+
+					// Image validation (only if visible)
+					if (form.image && form.image.style.display !== 'none') {
+
+						if (!form.image.value.trim()) {
+							// Empty → stamp outside like other fields
+							stampError(form.image, 'Required');
+							valid = false;
+						} else if (imageStatus !== 'approved') {
+							valid = false;
+
+							const inner = wrapper.querySelector('#imagePreview .image-preview-inner');
+							let stamp = inner.querySelector('.error-stamp');
+
+							if (stamp) {
+								// Reuse existing stamp and update text
+								stamp.textContent = 'Must Be Valid Image';
+							} else {
+								// Create stamp if none exists (first-time submit)
+								stamp = document.createElement('div');
+								stamp.className = 'error-stamp redemption';
+								stamp.textContent = 'Must Be Valid Image';
+								inner.appendChild(stamp);
+							}
+						}
+					}
+
+					let categoryValue = categorySelect.value;
+
+					if (!categoryValue) {
+						stampError(categorySelect, 'Required');
+						valid = false;
+
+					} else if (categoryValue === '__new__') {
+						if (!newCategoryInput.value.trim()) {
+							stampError(newCategoryInput, 'Required');
+							valid = false;
+						} else {
+						categoryValue = sanitiseCategory(newCategoryInput.value);
+						}
+					} else {
+						categoryValue = sanitiseCategory(categoryValue);
+					}
+
+					if (!iconInput.value) {
+						stampError(iconPicker, 'Required');
+						valid = false;
+					}
+
+					if (!valid) return;
+					const data = new FormData(form);
+					console.log([...data.entries()]);
+
+					// REST POST here
+					const formData = new URLSearchParams();
+					formData.append("type", "pins");
+					formData.append("category", categoryValue);
+					formData.append("xcoord", document.getElementById("xcoord").value);
+					formData.append("ycoord", document.getElementById("ycoord").value);
+					formData.append("name", document.getElementById("title").value);
+					formData.append("color", document.getElementById("color").value);
+					formData.append("icon", iconInput.value);
+					formData.append("image", document.getElementById("image").value);
+					
+					fetch(endpoint, {
+						method: "POST",
+						body: formData
+					})
+					.then(res => res.text())
+					.then(console.log)
+					.catch(console.error);
+
+					// Clean up form and UI
+					wrapper.remove();
+					togglePanel(false);
+					map.removeLayer(layer);
+					setTimeout(function() {
+						location.reload();
+					}, 1000);
+				});
+
+				// Handle reset/cancel
+				form.addEventListener('reset', (e) => {
+					e.preventDefault();
+					wrapper.remove();
+					togglePanel(false);
+					map.removeLayer(layer);
+				});
+
+			} else if (layer instanceof L.Polyline) {
+				polyParser(layer)
+			}
+		}, 500);
+	});
+
+	// not needed due to using forms and the layer data is re-parsed automatically
+	/*map.on('editable:vertex:ctrlclick', ({ layer }) => { // for poly drawing edit re-commits
+		setTimeout(function(){
+			if (layer instanceof L.Polyline) {
+				polyParser(layer)
+			}
+		}, 500);
+	});*/
+
+	function polyParser(layer) {
+		let extract = layer.getLatLngs();
+		let coords = extractCoordinates(extract);
+		let type; if (layer instanceof L.Polygon) {type = "polygon"}
+		else if (layer instanceof L.Polyline) {type = "polyline"};
+
+		togglePanel(true);
+
+		const panel = document.getElementById('side-panel');
+		const wrapper = document.createElement("div");
+		wrapper.classList.add("redemption","form-container");
+
+		wrapper.innerHTML = `
+		<h1>Ranch Map Poly Creator</h1>
+		<p>Now that you have placed the vertices of the Polyline or Polygon, submit the details to this form. You may also continuing editing the vertices if you are not 100% satisfied.</p>
+
+		<form id="polyForm" novalidate>
+			<input type="hidden" id="polytype" name="polytype">
+			<input type="hidden" id="coords" name="coords">
+
+			<label for="categorySelect">Category</label>
+			<select id="categorySelect" name="categorySelect">
+				<option value="">-- Select Category --</option>
+				${[...mapCategories].sort((a, b) => a.localeCompare(b))
+				.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+				<option value="__new__">+ New Category</option>
+			</select>
+			<input type="text" id="newCategory" name="newCategory" placeholder="New category..." style="display:none;">
+				
+			<label for="title">Label of Poly</label>
+			<input type="text" id="title" name="title" required>
+			
+			<label for="image" id="imagelabel">Descriptor Image</label>
+			<input type="url" id="image" name="image" required>
+			<div class="image-preview" id="imagePreview">
+				<div class="image-preview-inner"></div>
+			</div>
+			
+			<label for="color">Select Color</label>
+			<input type="color" id="color" name="color" value="#454545">
+
+			<input class="form-button redemption" type="reset" value="Cancel">
+			<input class="form-button redemption" type="submit" value="Submit">
+		</form>`;
+		panel.appendChild(wrapper);
+
+		const form = wrapper.querySelector('#polyForm');
+		const categorySelect = form.querySelector('#categorySelect');
+		const newCategoryInput = form.querySelector('#newCategory');
+
+		categorySelect.addEventListener('change', () => {
+			if (categorySelect.value === '__new__') {
+				newCategoryInput.style.display = 'block';
+			} else {
+				newCategoryInput.style.display = 'none';
+				newCategoryInput.value = '';
+			}
+		});
+
+		// Set hidden fields
+		form.polytype.value = type;
+		form.coords.value = coords;
+
+		// Hide image input for polylines
+		if (type === "polyline") {
+			form.image.value = "https://example.com/image.png";
+			wrapper.querySelector('#imagePreview').remove();
+			form.image.style.display = 'none';
+			wrapper.querySelector('#imagelabel').style.display = 'none';
+		}
+
+		// Debounced image validation (wait 500ms after typing stops)
+		const debouncedUpdateImage = debounce(() => {
+			updateImagePreview(form.image, wrapper);
+		}, 500);
+
+		form.addEventListener('input', (e) => {
+			const target = e.target;
+
+			// Remove previous field-error if typing
+			if (target.classList.contains('field-error')) {
+				target.classList.remove('field-error');
+				if (target.nextElementSibling?.classList.contains('error-stamp')) {
+					target.nextElementSibling.remove();
+				}
+			}
+
+			// Only run image validation if the input changed
+			if (target === form.image) {
+				debouncedUpdateImage();
+			}
+		});
+
+		function sanitiseCategory(str) {
+			return str
+				.trim()
+				.toLowerCase()
+				.replace(/\s+/g, ' ')
+				.replace(/^./, c => c.toUpperCase());
+		}
+
+		// Handle form submission
+		form.addEventListener('submit', (e) => {
+			e.preventDefault();
+			clearErrors(form);
+
+			let valid = true;
+
+			// Title validation
+			if (!form.title.value.trim()) {
+				stampError(form.title, 'Required');
+				valid = false;
+			}
+
+			// Image validation (only if visible)
+			if (form.image && form.image.style.display !== 'none') {
+
+				if (!form.image.value.trim()) {
+					// Empty → stamp outside like other fields
+					stampError(form.image, 'Required');
+					valid = false;
+
+				} else if (imageStatus !== 'approved') {
+					valid = false;
+
+					const inner = wrapper.querySelector('#imagePreview .image-preview-inner');
+					let stamp = inner.querySelector('.error-stamp');
+
+					if (stamp) {
+						// Reuse existing stamp and update text
+						stamp.textContent = 'Must Be Valid Image';
+					} else {
+						// Create stamp if none exists (first-time submit)
+						stamp = document.createElement('div');
+						stamp.className = 'error-stamp redemption';
+						stamp.textContent = 'Must Be Valid Image';
+						inner.appendChild(stamp);
+					}
+				}
+			}
+
+			let categoryValue = categorySelect.value;
+
+			if (!categoryValue) {
+				stampError(categorySelect, 'Required');
+				valid = false;
+
+			} else if (categoryValue === '__new__') {
+				if (!newCategoryInput.value.trim()) {
+					stampError(newCategoryInput, 'Required');
+					valid = false;
+				} else {
+					categoryValue = sanitiseCategory(newCategoryInput.value);
+				}
+			} else {
+				categoryValue = sanitiseCategory(categoryValue);
+			}
+
+			if (!valid) return;
+			const data = new FormData(form);
+			console.log([...data.entries()]);
+
+			// REST POST here
+            const formData = new URLSearchParams();
+            formData.append("type", "poly");
+            formData.append("polytype", document.getElementById("polytype").value);
+			formData.append("category", categoryValue);
+            formData.append("coords", coords);
+            formData.append("name", document.getElementById("title").value);
+            formData.append("image", document.getElementById("image").value);
+            formData.append("color", document.getElementById("color").value);
+
+            fetch(endpoint, {
+                method: "POST",
+                body: formData
+			})
+			.then(res => res.text())
+			.then(console.log)
+			.catch(console.error);
+
+			// Clean up form and UI
+			wrapper.remove();
+			togglePanel(false);
+			map.removeLayer(layer);
+			setTimeout(function() {
+				location.reload();
+			}, 1000);
+		});
+
+		// Handle reset/cancel
+		form.addEventListener('reset', (e) => {
+			e.preventDefault();
+			wrapper.remove();
+			togglePanel(false);
+			map.removeLayer(layer);
+		});
+	};
 
 </script><style>
+	@font-face {
+		font-family: 'redemption';
+		src: url('assets/REDEMPTION.TTF') format('truetype');
+		font-weight: normal;
+		font-style: normal;
+	} .redemption {
+		font-family: 'redemption', sans-serif;
+		letter-spacing: 2px;
+		text-align: center;
+	}
+
 	.leaflet-control-attribution {display: none;}
-	.leaflet-control-zoom {display: none;} /* disable me to re-enable zoom buttons */
+
 	.leaflet-bar a {border-bottom: 0;}
-	.leaflet-control-zoom-in {background-image: url('assets/icons/plus-circle.svg');}
+	.leaflet-control-zoom-in {background-image: url('assets/plus-circle.svg');}
 	.leaflet-control-zoom-in span, .leaflet-control-zoom-out span {opacity: 0;}
-	.leaflet-control-zoom-out {background-image: url('assets/icons/minus-circle.svg');}
-	
-	.basemapImg {background-image: url('assets/bg.png');}
+	.leaflet-control-zoom-out {background-image: url('assets/minus-circle.svg');}
+
+	.basemapImg, .leaflet-control-container div div a {background-color: rgb(30, 30, 30);}
+	.basemapImg:hover, .leaflet-control-container div div a:hover {background-color: rgb(50, 50, 50);}
+
+	.leaflet-control-pinsearch .search-input-container input,.leaflet-control-pinsearch div {
+		background-color: rgb(30, 30, 30);
+		color:white;
+		border: 1px solid rgb(50, 50, 50);
+	} .search-results-item:hover, .leaflet-control-pinsearch .search-input-container input:hover {background-color: rgb(50, 50, 50);}
+	.search-results-item.highlight {background-color: rgb(50, 50, 50);}
+
 	.name {opacity: 0;}
-</style>
+
+	#app {
+		display: flex;
+		width: 100%;
+		height: 100%;
+	} #app.panel-open #side-panel {
+		width: 45vh;
+	} #side-panel {
+		width: 0;
+		overflow: hidden;
+		background-image: url('assets/bg.png');
+		color: white;
+		transition: width 0.5s ease;
+	} #map {flex: 1;}
+	
+
+	.form-container {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+
+	padding: 1.25rem 1.5rem;
+	color: #f2f2f2;
+
+	overflow-y: auto;
+	} .form-container *,
+	.form-container *::before,
+	.form-container *::after {
+	box-sizing: border-box;
+	}
+
+	.form-container h1 {
+	font-size: 1.4rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	text-align: center;
+	margin: 0 0 0.75rem 0;
+	} .form-container p {
+	font-size: 0.85rem;
+	line-height: 1.45;
+	color: #cfcfcf;
+	margin: 0 0 1.5rem 0;
+	text-align: center;
+	}
+
+	.form-container label {
+	display: block;
+	margin: 1rem 0 0.35rem 0;
+
+	font-size: 1rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: #e6e6e6;
+	}
+
+	.form-container input[type="text"],
+	.form-container input[type="url"] {
+	width: 100%;
+	padding: 0.55rem 0.7rem;
+
+	background: #f5f5f5;
+	color: #000;
+
+	border: none;
+	border-radius: 4px;
+
+	font-size: 0.9rem;
+	} .form-container input[type="text"]:focus,
+	.form-container input[type="url"]:focus {
+	outline: none;
+	background: #ffffff;
+	} .form-container input[type="color"] {
+	display: block;
+	margin-top: 0.25rem;
+
+	margin: 0 auto;
+	text-align: center;
+
+	width: 42px;
+	height: 32px;
+
+	padding: 0;
+	border: 2px solid #f2f2f2;
+	border-radius: 4px;
+
+	background: transparent;
+	cursor: pointer;
+	}
+
+	.form-button {
+	margin-top: 1.75rem;
+	margin-right: 0.5rem;
+
+	background: transparent;
+	color: #f5f5f5;
+
+	border: 2px solid #f5f5f5;
+	border-radius: 4px;
+
+	padding: 0.55rem 1.2rem;
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+	} .form-button:hover {
+	background: #f5f5f5;
+	color: #000;
+	} .form-button:active {
+	background: #d8d8d8;
+	}
+
+	.form-container .field-error {
+	border: 2px solid #b33a3a !important;
+	background: #fff;
+	position: relative;
+	transform: rotate(-0.4deg);
+	}
+
+	/* Stamp message */
+	.form-container .error-stamp {
+	margin-top: 0.5rem;
+
+	display: inline-block;
+	padding: 0.35rem 0.6rem;
+
+	font-size: 1.2rem;
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+
+	color: #b33a3a;
+	border: 2px solid #b33a3a;
+
+	opacity: 0.9;
+	transform: rotate(-2deg);
+
+	user-select: none;
+	pointer-events: none;
+	}
+
+	/* Slight randomness so it doesn’t feel mechanical */
+	.form-container .error-stamp.alt {
+	transform: rotate(1.5deg);
+	}
+
+	/* Optional: brief stamp-in animation */
+	@keyframes stamp-in {
+	0% {
+		transform: scale(1.4) rotate(-8deg);
+		opacity: 0;
+	}
+	60% {
+		transform: scale(0.95) rotate(2deg);
+		opacity: 1;
+	}
+	100% {
+		transform: scale(1) rotate(-2deg);
+	}
+	}
+
+	.form-container .error-stamp {
+	animation: stamp-in 0.25s ease-out;
+	}
+
+	.image-preview {
+	margin-top: 0.75rem;
+	padding: 0.4rem;
+
+	border: 2px dashed #888;
+	border-radius: 4px;
+
+	opacity: 0;
+	transform: translateY(6px);
+	transition: opacity 0.25s ease, transform 0.25s ease;
+
+	max-width: 100%;
+	}
+
+	.image-preview .error-stamp {
+	margin: 0.5rem auto 0.5rem auto;
+	display: inline-block;
+	}
+
+	.image-preview .approved-stamp {
+	margin: 0.5rem auto 0.5rem auto;
+	display: inline-block;
+
+	padding: 0.3rem 0.55rem;
+
+	font-size: 1.2rem;
+	letter-spacing: 0.25em;
+	text-transform: uppercase;
+
+	color: #2f7a2f;
+	border: 2px solid #2f7a2f;
+
+	opacity: 0.85;
+	transform: rotate(-2deg);
+
+	animation: stamp-in 0.25s ease-out;
+	}
+
+	.image-preview.visible {
+	opacity: 1;
+	transform: translateY(0);
+	}
+
+	.image-preview img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	border-radius: 2px;
+	}
+
+	/* Failed preview styling */
+	.image-preview.failed {
+	border-color: #b33a3a;
+	}
+
+	.image-preview img {
+	opacity: 0;
+	transition: opacity 0.6s ease;
+	}
+
+	.image-preview img.visible {
+	opacity: 1;
+	}
+
+	.approved-stamp {
+	transition: opacity 0.5s ease;
+	}
+
+	.approved-stamp.fade-out {
+	opacity: 0;
+	}
+
+	.image-loader {
+	text-align: center;
+	padding: 0.75rem 0.5rem;
+
+	font-size: 0.7rem;
+	letter-spacing: 0.25em;
+	text-transform: uppercase;
+
+	color: #bdbdbd;
+	opacity: 0.85;
+
+	animation: rdr-flicker 1.2s infinite;
+	}
+
+	@keyframes rdr-flicker {
+	0%   { opacity: 0.4; }
+	50%  { opacity: 0.9; }
+	100% { opacity: 0.4; }
+	}
+
+	.custom-marker-wrapper {
+		background: none;
+		border: none;
+	}
+
+	.marker-pin {
+		width: 30px;
+		height: 30px;
+		border-radius: 50% 50% 50% 0;
+		transform: rotate(-45deg);
+		position: relative;
+
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.marker-icon {
+		width: 15px;
+		height: 15px;
+
+		transform: rotate(45deg); /* counter the pin rotation */
+		pointer-events: none;
+	}
+
+	.leaflet-control-layers {
+		background: rgba(20, 20, 20, 0.95);
+		border: 2px solid #444;
+		border-radius: 6px;
+
+		color: #f2f2f2;
+		font-family: 'redemption', sans-serif;
+		letter-spacing: 2px;
+
+		padding: 8px;
+	}
+
+	/* Layer items */
+	.leaflet-control-layers label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+
+		margin-bottom: 4px;
+		cursor: pointer;
+	}
+
+	/* Checkboxes */
+	.leaflet-control-layers input[type="checkbox"] {
+		accent-color: #b33a3a;
+	}
+
+	/* Toggle buttons */
+	.layer-toggle-controls {
+		margin-top: 6px;
+		padding: 6px;
+
+		background: rgba(20, 20, 20, 0.95);
+		border: 2px solid #444;
+		border-radius: 6px;
+
+		display: flex;
+		gap: 6px;
+	}
+
+	.layer-toggle-controls button {
+		flex: 1;
+
+		background: transparent;
+		color: #f5f5f5;
+
+		border: 2px solid #f5f5f5;
+		border-radius: 4px;
+
+		padding: 4px 6px;
+		font-size: 0.7rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+
+		cursor: pointer;
+	}
+
+	.layer-toggle-controls button:hover {
+		background: #f5f5f5;
+		color: #000;
+	}
+
+	.leaflet-control-layers::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background: url('assets/bg.png');
+		opacity: 0.2;
+		pointer-events: none;
+	}
+
+	/* Dropdown base */
+	.form-container select {
+		width: 100%;
+		padding: 0.55rem 0.7rem;
+
+		background: #1e1e1e;
+		color: #f2f2f2;
+
+		border: 2px solid #444;
+		border-radius: 4px;
+
+		font-size: 0.85rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+
+		font-family: 'redemption', sans-serif;
+
+		cursor: pointer;
+
+		/* Remove default styling */
+		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
+
+		/* Custom arrow */
+		background-image: url('assets/icons/chevron-down.svg');
+		background-repeat: no-repeat;
+		background-position: right 8px center;
+		background-size: 12px;
+	}
+
+	/* Hover + focus */
+	.form-container select:hover,
+	.form-container select:focus {
+		background-color: #2a2a2a;
+		outline: none;
+		border-color: #666;
+	}
+
+	/* Dropdown options (limited styling but helps) */
+	.form-container select option {
+		background: #1e1e1e;
+		color: #f2f2f2;
+	}
+
+	/* New category input matches style */
+	#newCategory {
+		width: 100%;
+		margin-top: 0.5rem;
+
+		padding: 0.55rem 0.7rem;
+
+		background: #f5f5f5;
+		color: #000;
+
+		border: none;
+		border-radius: 4px;
+
+		font-size: 0.9rem;
+	}
+
+	.icon-picker {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+		gap: 8px;
+
+		margin-top: 0.5rem;
+	}
+
+	.icon-option {
+		border: 2px solid #444;
+		border-radius: 4px;
+
+		padding: 6px;
+		background: #1e1e1e;
+
+		cursor: pointer;
+		transition: all 0.15s ease;
+
+		display: flex;
+		align-items: center;
+		justify-content: center;
+
+		transform: rotate(-0.5deg);
+	}
+
+	.icon-option img {
+		max-width: 100%;
+		max-height: 32px;
+		pointer-events: none;
+	}
+
+	/* Hover */
+	.icon-option:hover {
+		background: #2a2a2a;
+		border-color: #777;
+	}
+
+	/* Selected (stamp feel) */
+	.icon-option.selected {
+		border: 2px solid #b33a3a;
+		background: #2a1a1a;
+
+		transform: rotate(1deg) scale(1.05);
+	}
+
+	/* Optional: stamp effect */
+	.icon-option.selected::after {
+		content: "✓";
+		position: absolute;
+		top: -6px;
+		right: -6px;
+
+		font-size: 0.7rem;
+		color: #b33a3a;
+	}
+	</style>
 </body>
 </html>
