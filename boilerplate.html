@@ -571,7 +571,7 @@
 				switch (polytype) {
 					case "polyline":
 						L.polyline(coordinates, { color: color })
-						.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
+						.bindPopup(`<h1>${name}</h1>`)//<img src="${image}" style="width:256px;height:256px">
 						.addTo(categoryLayers[category]);
 						break;
 					case "polygon":
