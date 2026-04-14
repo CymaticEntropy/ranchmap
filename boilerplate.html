@@ -357,6 +357,7 @@
 	let imageStatus = 'idle';
 
 	var map = L.map('map', {editable: true, zoomControl: false, doubleClickZoom: false}).setView([55.5, -50], 0);
+	L.Icon.Default.imagePath = 'assets/markers/';
 
 	const basemaps = [
 		{
