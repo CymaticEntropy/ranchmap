@@ -256,27 +256,20 @@
 		return L.marker(latlng, { icon: markerIcon, title: title });
 	}
 
-	const key = getCookie("api_key");
-
-	if (key == null || key === "null" || key === "") {
+	if (getCookie("api_key") == null || getCookie("api_key") === "null" || getCookie("api_key") === "") {
 		let value = window.prompt("Enter your API Key Here");
 		setCookie("api_key", value);
-
 	} else {
 		const expiredKeys = [
 			"abc123",
 			"expired_key_here"
 		];
 
-		if (expiredKeys.includes(key)) {
-			// Invalidate the key
+		if (expiredKeys.includes(getCookie("api_key"))) {
 			setCookie("api_key", "null");
-
-			// Reload page
 			location.reload();
 		} else {
-			// Extend expiry by resetting it
-			setCookie("api_key", key);
+			setCookie("api_key", getCookie("api_key"));
 		}
 	}
 
@@ -289,7 +282,6 @@
 
 	const endpoint = atob("aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy8=") + getCookie("api_key") + "/exec";
 
-	
 	let mapCategories = [];
 	const availableIcons = [
 		"anchor",
