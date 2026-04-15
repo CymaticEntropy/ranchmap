@@ -256,12 +256,28 @@
 		return L.marker(latlng, { icon: markerIcon, title: title });
 	}
 
-	if (getCookie("api_key") == null || getCookie("api_key") == "null" || getCookie("api_key") == "") {
-		let value = window.prompt("Enter your API Key Here")
-		setCookie("api_key",value)
-	} else if (getCookie("api_key") != null) {
-		let value = getCookie("api_key")
-		setCookie("api_key",value)
+	const key = getCookie("api_key");
+
+	if (key == null || key === "null" || key === "") {
+		let value = window.prompt("Enter your API Key Here");
+		setCookie("api_key", value);
+
+	} else {
+		const expiredKeys = [
+			"abc123",
+			"expired_key_here"
+		];
+
+		if (expiredKeys.includes(key)) {
+			// Invalidate the key
+			setCookie("api_key", "null");
+
+			// Reload page
+			location.reload();
+		} else {
+			// Extend expiry by resetting it
+			setCookie("api_key", key);
+		}
 	}
 
 	if (getCookie("last_layer") == null) {
@@ -272,6 +288,8 @@
 	}
 
 	const endpoint = atob("aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy8=") + getCookie("api_key") + "/exec";
+
+	
 	let mapCategories = [];
 	const availableIcons = [
 		"anchor",
@@ -352,6 +370,7 @@
 		"trophy",
 		"wagon"
 	];
+	
 	let mapPinsData;
 	let mapPolyData;
 	let imageStatus = 'idle';
