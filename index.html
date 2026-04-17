@@ -585,26 +585,37 @@
 				let image = val.image;
 				let color = val.color;
 
+				var invisibleIcon = L.icon({
+					iconUrl: 'assets/markers/marker-invisible.png',
+					iconSize: [0, 0],
+					iconAnchor: [0, 0], // bottom center
+					popupAnchor: [0, 0],
+				});
+
 				if (!categoryLayers[category]) {
 					categoryLayers[category] = L.layerGroup().addTo(map);
-				} 
+				}
 
 				switch (polytype) {
 					case "polyline":
-						L.polyline(coordinates, { color: color })
+						let poly = L.polyline(coordinates, { color: color })
 						.bindPopup(`<h1>${name}</h1>`)//<img src="${image}" style="width:256px;height:256px">
 						.addTo(categoryLayers[category]);
+						L.marker(poly.getCenter(), {title: name, icon: invisibleIcon}).addTo(map);
 						break;
 					case "polygon":
 						if (image == "https://picsum.photos/256/256.jpg") {
-							L.polygon(coordinates, { color: color })
+							let poly = L.polygon(coordinates, { color: color })
 							.bindPopup(`<h1>${name}</h1>`)
 							.addTo(categoryLayers[category]);
+							L.marker(poly.getBounds().getCenter(), {title: name, icon: invisibleIcon}).addTo(map);
 							break;
 						} else {
-							L.polygon(coordinates, { color: color })
+							let poly = L.polygon(coordinates, { color: color })
 							.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
 							.addTo(categoryLayers[category]);
+
+							L.marker(poly.getBounds().getCenter(), {title: name, icon: invisibleIcon}).addTo(map);
 							break;
 						}
 				}
