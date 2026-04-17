@@ -548,13 +548,23 @@
 					categoryLayers[category] = L.layerGroup().addTo(map);
 				}
 
-				createCustomMarker([xCoordinate, yCoordinate], {
-					title: name,
-					color: color,
-					icon: icon
-				})
-				.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
-				.addTo(categoryLayers[category]);
+				if (image == "https://picsum.photos/256/256.jpg") {
+					createCustomMarker([xCoordinate, yCoordinate], {
+						title: name,
+						color: color,
+						icon: icon
+					})
+					.bindPopup(`<h1>${name}</h1>`)
+					.addTo(categoryLayers[category]);
+				} else {
+					createCustomMarker([xCoordinate, yCoordinate], {
+						title: name,
+						color: color,
+						icon: icon
+					})
+					.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
+					.addTo(categoryLayers[category]);
+				}
 			}
         };
 
@@ -586,10 +596,17 @@
 						.addTo(categoryLayers[category]);
 						break;
 					case "polygon":
-						L.polygon(coordinates, { color: color })
-						.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
-						.addTo(categoryLayers[category]);
-						break;
+						if (image == "https://picsum.photos/256/256.jpg") {
+							L.polygon(coordinates, { color: color })
+							.bindPopup(`<h1>${name}</h1>`)
+							.addTo(categoryLayers[category]);
+							break;
+						} else {
+							L.polygon(coordinates, { color: color })
+							.bindPopup(`<h1>${name}</h1><img src="${image}" style="width:256px;height:256px">`)
+							.addTo(categoryLayers[category]);
+							break;
+						}
 				}
 			}
         }
@@ -647,7 +664,7 @@
 
 				wrapper.innerHTML = `
 				<h1>Ranch Map Pin Creator</h1>
-				<p>Now that you have placed the Pin, submit the details to this form.</p>
+				<p>Now that you have placed the Pin, submit the details below.</p>
 
 				<form id="pinForm" novalidate>
 				<input type="hidden" id="xcoord" name="xcoord">
@@ -664,9 +681,9 @@
 
 				<label for="title">Label of Pin</label>
 				<input type="text" id="title" name="title" required>
-				
+
 				<label for="image" id="imagelabel">Descriptor Image</label>
-				<input type="url" id="image" name="image" required>
+				<input type="url" id="image" name="image">
 				<div class="image-preview" id="imagePreview">
 					<div class="image-preview-inner"></div>
 				</div>
@@ -753,108 +770,111 @@
 					.toLowerCase()
 					.replace(/\s+/g, ' ')
 					.replace(/^./, c => c.toUpperCase());
+			}
+
+			// Handle form submission
+			form.addEventListener('submit', (e) => {
+				e.preventDefault();
+				clearErrors(form);
+
+				let valid = true;
+				let imageUsed = true;
+
+				// Title validation
+				if (!form.title.value.trim()) {
+					stampError(form.title, 'Required');
+					valid = false;
 				}
 
-				// Handle form submission
-				form.addEventListener('submit', (e) => {
-					e.preventDefault();
-					clearErrors(form);
+				// Image validation (only if visible)
+				if (form.image && form.image.style.display !== 'none') {
 
-					let valid = true;
-
-					// Title validation
-					if (!form.title.value.trim()) {
-						stampError(form.title, 'Required');
-						valid = false;
-					}
-
-					// Image validation (only if visible)
-					if (form.image && form.image.style.display !== 'none') {
-
-						if (!form.image.value.trim()) {
-							// Empty → stamp outside like other fields
-							stampError(form.image, 'Required');
-							valid = false;
-						} else if (imageStatus !== 'approved') {
-							valid = false;
-
-							const inner = wrapper.querySelector('#imagePreview .image-preview-inner');
-							let stamp = inner.querySelector('.error-stamp');
-
-							if (stamp) {
-								// Reuse existing stamp and update text
-								stamp.textContent = 'Must Be Valid Image';
-							} else {
-								// Create stamp if none exists (first-time submit)
-								stamp = document.createElement('div');
-								stamp.className = 'error-stamp redemption';
-								stamp.textContent = 'Must Be Valid Image';
-								inner.appendChild(stamp);
-							}
-						}
-					}
-
-					let categoryValue = categorySelect.value;
-
-					if (!categoryValue) {
-						stampError(categorySelect, 'Required');
+					if (!form.image.value.trim()) {
+						// Empty → stamp outside like other fields
+						//stampError(form.image, 'Required');
+						//valid = false;
+						imageUsed = false;
+					} else if (imageStatus !== 'approved') {
 						valid = false;
 
-					} else if (categoryValue === '__new__') {
-						if (!newCategoryInput.value.trim()) {
-							stampError(newCategoryInput, 'Required');
-							valid = false;
+						const inner = wrapper.querySelector('#imagePreview .image-preview-inner');
+						let stamp = inner.querySelector('.error-stamp');
+
+						if (stamp) {
+							// Reuse existing stamp and update text
+							stamp.textContent = 'Must Be Valid Image';
 						} else {
-						categoryValue = sanitiseCategory(newCategoryInput.value);
+							// Create stamp if none exists (first-time submit)
+							stamp = document.createElement('div');
+							stamp.className = 'error-stamp redemption';
+							stamp.textContent = 'Must Be Valid Image';
+							inner.appendChild(stamp);
 						}
-					} else {
-						categoryValue = sanitiseCategory(categoryValue);
 					}
+				}
 
-					if (!iconInput.value) {
-						stampError(iconPicker, 'Required');
+				let categoryValue = categorySelect.value;
+
+				if (!categoryValue) {
+					stampError(categorySelect, 'Required');
+					valid = false;
+
+				} else if (categoryValue === '__new__') {
+					if (!newCategoryInput.value.trim()) {
+						stampError(newCategoryInput, 'Required');
 						valid = false;
+					} else {
+						categoryValue = sanitiseCategory(newCategoryInput.value);
 					}
+				} else {
+					categoryValue = sanitiseCategory(categoryValue);
+				}
 
-					if (!valid) return;
-					const data = new FormData(form);
-					console.log([...data.entries()]);
+				if (!iconInput.value) {
+					stampError(iconPicker, 'Required');
+					valid = false;
+				}
 
-					// REST POST here
-					const formData = new URLSearchParams();
-					formData.append("type", "pins");
-					formData.append("category", categoryValue);
-					formData.append("xcoord", document.getElementById("xcoord").value);
-					formData.append("ycoord", document.getElementById("ycoord").value);
-					formData.append("name", document.getElementById("title").value);
-					formData.append("color", document.getElementById("color").value);
-					formData.append("icon", iconInput.value);
-					formData.append("image", document.getElementById("image").value);
-					
-					fetch(endpoint, {
-						method: "POST",
-						body: formData
-					})
-					.then(res => res.text())
-					.then(console.log)
-					.catch(console.error);
+				if (!valid) return;
+				const data = new FormData(form);
+				console.log([...data.entries()]);
 
-					// Clean up form and UI
-					wrapper.remove();
-					togglePanel(false);
-					map.removeLayer(layer);
-					setTimeout(function() {
-						location.reload();
-					}, 2500);
-				});
+				// REST POST here
+				const formData = new URLSearchParams();
+				formData.append("type", "pins");
+				formData.append("category", categoryValue);
+				formData.append("xcoord", document.getElementById("xcoord").value);
+				formData.append("ycoord", document.getElementById("ycoord").value);
+				formData.append("name", document.getElementById("title").value);
+				formData.append("color", document.getElementById("color").value);
+				formData.append("icon", iconInput.value);
+				if (imageUsed) {formData.append("image", document.getElementById("image").value);}
+				else if (!imageUsed) {formData.append("image", "https://picsum.photos/256/256.jpg");}
 
-				// Handle reset/cancel
-				form.addEventListener('reset', (e) => {
-					e.preventDefault();
-					wrapper.remove();
-					togglePanel(false);
-					map.removeLayer(layer);
-				});
+				fetch(endpoint, {
+					method: "POST",
+					body: formData
+				})
+				.then(res => res.text())
+				.then(console.log)
+				.catch(console.error);
+
+				// Clean up form and UI
+				wrapper.remove();
+				togglePanel(false);
+				map.removeLayer(layer);
+				setTimeout(function() {
+					location.reload();
+				}, 2500);
+			});
+
+			// Handle reset/cancel
+			form.addEventListener('reset', (e) => {
+				e.preventDefault();
+				wrapper.remove();
+				togglePanel(false);
+				map.removeLayer(layer);
+			});
 
 			} else if (layer instanceof L.Polyline) {
 				polyParser(layer)
@@ -904,7 +924,7 @@
 			<input type="text" id="title" name="title" required>
 			
 			<label for="image" id="imagelabel">Descriptor Image</label>
-			<input type="url" id="image" name="image" required>
+			<input type="url" id="image" name="image">
 			<div class="image-preview" id="imagePreview">
 				<div class="image-preview-inner"></div>
 			</div>
@@ -936,7 +956,7 @@
 
 		// Hide image input for polylines
 		if (type === "polyline") {
-			form.image.value = "https://example.com/image.png";
+			form.image.value = "https://picsum.photos/256/256.jpg";
 			wrapper.querySelector('#imagePreview').remove();
 			form.image.style.display = 'none';
 			wrapper.querySelector('#imagelabel').style.display = 'none';
@@ -978,6 +998,7 @@
 			clearErrors(form);
 
 			let valid = true;
+			let imageUsed = true;
 
 			// Title validation
 			if (!form.title.value.trim()) {
@@ -990,9 +1011,9 @@
 
 				if (!form.image.value.trim()) {
 					// Empty → stamp outside like other fields
-					stampError(form.image, 'Required');
-					valid = false;
-
+					//stampError(form.image, 'Required');
+					//valid = false;
+					imageUsed = false;
 				} else if (imageStatus !== 'approved') {
 					valid = false;
 
@@ -1040,7 +1061,8 @@
 			formData.append("category", categoryValue);
             formData.append("coords", coords);
             formData.append("name", document.getElementById("title").value);
-            formData.append("image", document.getElementById("image").value);
+			if (imageUsed) {formData.append("image", document.getElementById("image").value);}
+			else if (!imageUsed) {formData.append("image", "https://picsum.photos/256/256.jpg");}
             formData.append("color", document.getElementById("color").value);
 
             fetch(endpoint, {
